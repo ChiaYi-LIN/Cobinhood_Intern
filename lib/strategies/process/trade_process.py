@@ -27,10 +27,16 @@ class trade_process:
         self.data = data
         self.previous_action = 0
         self.current_situation = 0
-        self.usd = 0
+        self.start_btc_account = 0
+        self.start_usd_account = 100000
+        self.btc = self.start_btc_account
+        self.usd = self.start_usd_account
+        self.start_period_usd = 0
+        self.end_period_usd = 0
         self.exist_long = []
         self.exist_short = []
         self.fees = 0.0025
+        self.ma_stop_gain = 0
         self.profit = 0
         self.win_rate = 0
     
@@ -122,10 +128,14 @@ class trade_process:
         self.data["Action"].iloc[i] = "Long"
         self.data["Long"].iloc[i] = n
         self.data["Price"].iloc[i] = self.data["Close"].iloc[i]*(1 + self.fees)
-        self.usd -= self.data["Price"].iloc[i]*n
+        self.start_period_usd = self.usd
+        self.usd = self.usd/2
+        self.btc += self.usd/self.data["Price"].loc[i]
+        # self.usd -= self.data["Price"].iloc[i]*n
+        self.data["BTC account"].iloc[i] = self.btc
         self.data["USD account"].iloc[i] = self.usd
         self.previous_action = i
-        self.exist_long.append([n, self.data["Price"].iloc[i], self.data["High"].iloc[i], self.data["Low"].iloc[i]])
+        self.exist_long.append([n, self.data["Price"].iloc[i], self.data["High"].iloc[i], self.data["Low"].iloc[i], self.data["Close"].iloc[i]])
 
     def trade_short(self, i, n):
         self.current_situation -= n
@@ -133,10 +143,14 @@ class trade_process:
         self.data["Action"].iloc[i] = "Short"
         self.data["Short"].iloc[i] = n
         self.data["Price"].iloc[i] = self.data["Close"].iloc[i]*(1 - self.fees)
-        self.usd += self.data["Price"].iloc[i]*n
+        self.start_period_usd = self.usd
+        self.btc += -(self.usd/2)/self.data["Price"].loc[i]
+        self.usd = self.usd*(3/2)
+        # self.usd += self.data["Price"].iloc[i]*n
+        self.data["BTC account"].iloc[i] = self.btc
         self.data["USD account"].iloc[i] = self.usd
         self.previous_action = i 
-        self.exist_short.append([n, self.data["Price"].iloc[i], self.data["High"].iloc[i], self.data["Low"].iloc[i]])
+        self.exist_short.append([n, self.data["Price"].iloc[i], self.data["High"].iloc[i], self.data["Low"].iloc[i], self.data["Close"].iloc[i]])
 
     def trade_buy(self, i, n):
         self.current_situation += n
@@ -144,8 +158,15 @@ class trade_process:
         self.data["Action"].iloc[i] = "Buy"
         self.data["Buy"].iloc[i] = n
         self.data["Price"].iloc[i] = self.data["Close"].iloc[i]*(1 + self.fees)
-        self.usd -= self.data["Price"].iloc[i]*n
+        self.usd = self.usd + self.btc*self.data["Price"].iloc[i]
+        self.end_period_usd = self.usd
+        self.btc = 0
+        # self.usd -= self.data["Price"].iloc[i]*n
+        self.data["BTC account"].iloc[i] = self.btc
         self.data["USD account"].iloc[i] = self.usd
+        
+        del self.exist_short[:]
+        """
         unit = n
         return_rate_data = []
         return_sum = 0
@@ -163,7 +184,20 @@ class trade_process:
             return_sum += return_rate_data[x][1]*return_rate_data[x][0] 
         previous_price = (return_sum/return_unit)*unit
         current_price = self.data["Price"].iloc[i]*unit
-
+        """
+        if self.start_period_usd < self.end_period_usd:
+            self.data["Win/Lose"].iloc[i] = "Win"
+            self.data["Gain/Loss"].iloc[i] = abs(self.end_period_usd - self.start_period_usd)
+            self.data["Rate of return"].iloc[i] = abs((self.end_period_usd - self.start_period_usd)/self.start_period_usd)
+        elif self.start_period_usd > self.end_period_usd:
+            self.data["Win/Lose"].iloc[i] = "Lose"
+            self.data["Gain/Loss"].iloc[i] = -abs(self.end_period_usd - self.start_period_usd)
+            self.data["Rate of return"].iloc[i] = -abs((self.end_period_usd - self.start_period_usd)/self.start_period_usd)
+        else:
+            self.data["Win/Lose"].iloc[i] = "Fair"
+            self.data["Gain/Loss"].iloc[i] = 0
+            self.data["Rate of return"].iloc[i] = 0
+        """
         if previous_price > current_price:
             self.data["Win/Lose"].iloc[i] = "Win"
             self.data["Gain/Loss"].iloc[i] = abs(current_price - previous_price)
@@ -176,35 +210,58 @@ class trade_process:
             self.data["Win/Lose"].iloc[i] = "Fair"
             self.data["Gain/Loss"].iloc[i] = 0
             self.data["Rate of return"].iloc[i] = 0
-        
+        """
+        self.start_period_usd = 0
+        self.end_period_usd = 0
         self.previous_action = i
     
     def trade_sell(self, i, n):
+        # origin_btc = self.btc
         self.current_situation -= n
         self.data["Situation"].iloc[i] = self.current_situation
         self.data["Action"].iloc[i] = "Sell"
         self.data["Sell"].iloc[i] = n
         self.data["Price"].iloc[i] = self.data["Close"].iloc[i]*(1 - self.fees)
-        self.usd += self.data["Price"].iloc[i]*n
+        self.usd = self.usd + self.btc*self.data["Price"].iloc[i]
+        self.end_period_usd = self.usd
+        self.btc = 0
+        # self.usd += self.data["Price"].iloc[i]*n
         self.data["USD account"].iloc[i] = self.usd
-        unit = n
+        self.data["BTC account"].iloc[i] = self.btc
+        
+        del self.exist_long[:]
+        """
+        unit = origin_btc
         return_rate_data = []
         return_sum = 0
         return_unit = 0
-        while (self.exist_long != []) and (n > 0):
-            if n >= self.exist_long[0][0]:
-                n -= self.exist_long[0][0]
+        while (self.exist_long != []) and (origin_btc > 0):
+            if origin_btc >= self.exist_long[0][0]:
+                origin_btc -= self.exist_long[0][0]
                 return_rate_data.append(self.exist_long.pop(0))
             else:
-                return_rate_data.append([n,self.exist_long[0][1]])
-                self.exist_long[0][0] -= n
-                n = 0
+                return_rate_data.append([origin_btc,self.exist_long[0][1]])
+                self.exist_long[0][0] -= origin_btc
+                origin_btc = 0
         for x in range(len(return_rate_data)):
             return_unit += return_rate_data[x][0]
             return_sum += return_rate_data[x][1]*return_rate_data[x][0] 
         previous_price = (return_sum/return_unit)*unit
         current_price = self.data["Price"].iloc[i]*unit
-
+        """
+        if self.start_period_usd < self.end_period_usd:
+            self.data["Win/Lose"].iloc[i] = "Win"
+            self.data["Gain/Loss"].iloc[i] = abs(self.end_period_usd - self.start_period_usd)
+            self.data["Rate of return"].iloc[i] = abs((self.end_period_usd - self.start_period_usd)/self.start_period_usd)
+        elif self.start_period_usd > self.end_period_usd:
+            self.data["Win/Lose"].iloc[i] = "Lose"
+            self.data["Gain/Loss"].iloc[i] = -abs(self.end_period_usd - self.start_period_usd)
+            self.data["Rate of return"].iloc[i] = -abs((self.end_period_usd - self.start_period_usd)/self.start_period_usd)
+        else:
+            self.data["Win/Lose"].iloc[i] = "Fair"
+            self.data["Gain/Loss"].iloc[i] = 0
+            self.data["Rate of return"].iloc[i] = 0
+        """
         if previous_price < current_price:
             self.data["Win/Lose"].iloc[i] = "Win"
             self.data["Gain/Loss"].iloc[i] = abs(current_price - previous_price)
@@ -217,7 +274,9 @@ class trade_process:
             self.data["Win/Lose"].iloc[i] = "Fair"
             self.data["Gain/Loss"].iloc[i] = 0
             self.data["Rate of return"].iloc[i] = 0
-
+        """
+        self.start_period_usd = 0
+        self.end_period_usd = 0
         self.previous_action = i
 
     def trade_sheet(self):
@@ -231,7 +290,10 @@ class trade_process:
         self.data["Win/Lose"] = None
         self.data["Gain/Loss"] = None
         self.data["Rate of return"] = None
+        self.data["BTC account"] = None
+        self.data["BTC account"].iloc[0] = self.start_btc_account
         self.data["USD account"] = None
+        self.data["USD account"].iloc[0] = self.start_usd_account
 
 #%%
 class plot_data:
@@ -797,7 +859,8 @@ class plot_data:
 
         trace_cumulate_gain_and_loss = go.Scatter(
             x = x_axis,
-            y = each_win_lose["Gain/Loss"].cumsum(),
+            # y = each_win_lose["Gain/Loss"].cumsum(),
+            y = each_win_lose["USD account"],
             mode = "lines",
             line = dict( color = "#B54434" ),
             name = "Cumulated Gain/Loss after each trade"
@@ -998,6 +1061,16 @@ class technical_analysis:
         self.data = self.data.resample('60T', closed='left', label='left').apply(self.ohlc_dict)
         self.data = self.data.reset_index()
 
+    def drop_blank(self):
+        self.data = self.data.loc[self.data["Volume"] > 0]
+        # self.data = self.data.dropna(inplace = True) 
+        self.data = self.data.reset_index(drop=True)
+
+    def add_ema(self, period):
+        ema_colname = "EMA_" + str(period)
+        self.data[ema_colname] = None
+        self.data[ema_colname] = self.data["Close"].ewm(span=period, adjust=False).mean()
+    
     def add_sma(self, period):
         sma_colname = "SMA_" + str(period)
         self.data[sma_colname] = None
