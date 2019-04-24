@@ -1,13 +1,14 @@
 # 移除下影線條件
 # long 1 > long 2 > sell all
 # 訊號後第三根交易
-# target price = max(long 1 close, long 2 close)
+# target price = long 1 close + X
 # long 1 用全部資金20%
 # long 2 用剩下資金40%
 # 停損用加權平均成本
+# long 1 只有訊號不進場
 #%%
 from .process.trade_process import trade_process
-class trade_strategy_6(trade_process):
+class trade_strategy_8(trade_process):
     def apply_trading_strategy(self, sar_diff, long_1_stop_gain, long_1_moving_rate, long_2_if_loss, long_2_target, long_2_moving_stop, long_2_stop_loss, delay_period, volume_max):
         self.long_signal = False
         self.short_signal = False
@@ -20,8 +21,6 @@ class trade_strategy_6(trade_process):
         self.to_target_price = False
 
         first_action = True
-        test_sell_long_1 = False
-        # test_long_2 = False
         for i in range(len(self.data)):
             if self.delay == 0:
                 if first_action:
@@ -33,21 +32,10 @@ class trade_strategy_6(trade_process):
                         self.should_long(i, sar_diff, volume_max)
                 elif self.do_next_trade(i,3):                   
                     if self.current_situation == 1:
-                        if self.current_return(self.exist_long[0][4], self.data["Close"].iloc[i]) >= long_1_stop_gain or test_sell_long_1:
-                            test_sell_long_1 = True
-                            #1/3移動停利
-                            if self.sell_signal:
-                                self.trade_sell(i, self.sell_quantity(i))
-                                self.sell_signal = False
-                                test_sell_long_1 = False
-                            else:
-                                self.should_sell(i, sar_diff, long_1_moving_rate, long_2_target, long_2_moving_stop, long_2_stop_loss)
-                        elif self.current_return(self.exist_long[0][4], self.data["Close"].iloc[i]) <= long_2_if_loss:
-                            # test_long_2 = True
+                        if self.current_return(self.exist_long[0][4], self.data["Close"].iloc[i]) <= long_2_if_loss:
                             if self.long_signal:
                                 self.trade_long(i, self.long_quantity(i))
                                 self.long_signal = False
-                                # test_long_2 = False
                             else:
                                 self.should_long(i, sar_diff, volume_max)
                     elif self.current_situation ==  2:
@@ -93,19 +81,9 @@ class trade_strategy_6(trade_process):
                     # self.keep_signal = self.data["Close"].iloc[i]
                     
     def should_sell(self, i, sar_diff, long_1_moving_rate, long_2_target, long_2_moving_stop, long_2_stop_loss):
-        if self.current_situation == 1:
-            if self.ma_stop_gain == 0:
-                self.ma_stop_gain = (self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4] 
-            else:
-                if ((self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4]) <= self.ma_stop_gain*long_1_moving_rate:
-                    self.sell_signal = True
-                    # self.keep_signal = 0
-                    self.ma_stop_gain = 0
-                    self.start_ma_stop_gain = False
-                elif ((self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4]) > self.ma_stop_gain:
-                    self.ma_stop_gain = (self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4] 
-        elif self.current_situation == 2:
-            weighted_cost = (self.exist_long[0][0]*self.exist_long[0][4] + self.exist_long[1][0]*self.exist_long[1][4])/(self.exist_long[0][0] + self.exist_long[1][0])
+        if self.current_situation == 2:
+            # weighted_cost = (self.exist_long[0][0]*self.exist_long[0][4] + self.exist_long[1][0]*self.exist_long[1][4])/(self.exist_long[0][0] + self.exist_long[1][0])
+            weighted_cost = (self.exist_long[0][4] + self.exist_long[1][4]) / 2
             if self.to_target_price == False and self.data["Close"].iloc[i] >= self.exist_long[0][4]*(1 + long_2_target):
                 self.to_target_price = True
                 if self.start_ma_stop_gain != True:
@@ -127,7 +105,7 @@ class trade_strategy_6(trade_process):
                 elif ((self.data["Close"].iloc[i] - weighted_cost)/weighted_cost) > self.ma_stop_gain:
                     self.ma_stop_gain = (self.data["Close"].iloc[i] - weighted_cost)/weighted_cost 
             else:
-                if (self.data["Close"].iloc[i] - weighted_cost)/weighted_cost <= long_2_stop_loss:
+                if (self.data["Close"].iloc[i] - self.exist_long[1][4])/self.exist_long[1][4] <= long_2_stop_loss:
                     self.sell_signal = True
                     self.ma_stop_gain = 0
                     self.start_ma_stop_gain = False
@@ -184,22 +162,22 @@ class trade_strategy_6(trade_process):
         btc_change = 0
         self.current_situation += n
         self.data["Situation"].iloc[i] = self.current_situation
-        self.data["Action"].iloc[i] = "Long"
-        self.data["Long"].iloc[i] = n
-        self.data["Price"].iloc[i] = self.data["Close"].iloc[i]*(1 + self.fees)
+        
         if self.current_situation == 1:
             self.start_period_usd = self.usd
-            btc_change = self.usd*0.2/self.data["Price"].loc[i]
+            self.exist_long.append([btc_change, self.data["Close"].iloc[i]*(1 + self.fees), self.data["High"].iloc[i], self.data["Low"].iloc[i], self.data["Close"].iloc[i]])
+        
+        elif self.current_situation == 2:
+            self.data["Action"].iloc[i] = "Long"
+            self.data["Long"].iloc[i] = n
+            self.data["Price"].iloc[i] = self.data["Close"].iloc[i]*(1 + self.fees)
+            btc_change = self.usd*0.3/self.data["Price"].loc[i]
             self.btc += btc_change
-            self.usd = self.usd*0.8
-        elif self.current_situation == 2:  
-            btc_change = self.usd*0.4/self.data["Price"].loc[i]
-            self.btc += btc_change
-            self.usd = self.usd*0.6
-        # self.usd -= self.data["Price"].iloc[i]*n
-        self.data["BTC account"].iloc[i] = self.btc
-        self.data["USD account"].iloc[i] = self.usd
+            self.usd = self.usd*0.7
+            self.data["BTC account"].iloc[i] = self.btc
+            self.data["USD account"].iloc[i] = self.usd
+            self.exist_long.append([btc_change, self.data["Price"].iloc[i], self.data["High"].iloc[i], self.data["Low"].iloc[i], self.data["Close"].iloc[i]])
+            
         self.previous_action = i
-        self.exist_long.append([btc_change, self.data["Price"].iloc[i], self.data["High"].iloc[i], self.data["Low"].iloc[i], self.data["Close"].iloc[i]])
         if len(self.exist_long) > 2:
             print(self.exist_long)
