@@ -294,6 +294,9 @@ class trade_process:
         self.data["BTC account"].iloc[0] = self.start_btc_account
         self.data["USD account"] = None
         self.data["USD account"].iloc[0] = self.start_usd_account
+    
+    def current_return(self, start_price, current_price):
+        return (current_price - start_price)/start_price
 
 #%%
 class plot_data:
@@ -304,10 +307,11 @@ class plot_data:
         print(self.data.iloc[start:end,])
     
     def plot_all(self):
-        self.bokeh_plot_technical_analysis_part()
+        
         # self.plotly_plot_technical_analysis_part()
         # self.plotly_plot_technical_analysis_full()
         self.plot_overview_win_and_lose()
+        self.bokeh_plot_technical_analysis_part()
 
     def bokeh_plot_technical_analysis_part(self):
         inc = self.data.loc[self.data["Close"] > self.data["Open"]]
@@ -354,6 +358,8 @@ class plot_data:
         p.segment(self.data["Datetime"], self.data["High"], self.data["Datetime"], self.data["Low"], color="black")
         p.vbar(inc["Datetime"], w, inc["Open"], inc["Close"], fill_color="#FF0000", line_color="#FF0000")
         p.vbar(dec["Datetime"], w, dec["Open"], dec["Close"], fill_color="#00FF00", line_color="#00FF00")
+        # Add SMA
+        p.line(self.data["Datetime"], self.data["SMA_12"])
         # Add scatter plots
         p.circle(self.data["Datetime"], self.data["SAR Bear"], color="#0D5661", fill_alpha=0.2, size=1)
         p.circle(self.data["Datetime"], self.data["SAR Bull"], color="#E98B2A", fill_alpha=0.2, size=1)
@@ -935,7 +941,8 @@ class plot_data:
             ) 
         )
 
-        py.iplot(fig, filename = "plot_overview_win_and_lose")
+        py.plot(fig, filename='plot_overview_win_and_lose.html')
+        # py.iplot(fig, filename = "plot_overview_win_and_lose")
 
         # sns_plot = sns.barplot(x = "Datetime", y = "Gain/Loss", data = each_win_lose, hue = "Win/Lose")
         # sns_plot.get_figure().savefig("./Gain and Loss in each trade.png")

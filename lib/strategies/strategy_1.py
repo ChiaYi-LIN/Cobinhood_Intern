@@ -1,7 +1,8 @@
+# 移動停利
 #%%
 from .process.trade_process import trade_process
 class trade_strategy_1(trade_process):
-    def apply_trading_strategy(self, sar_m_low, low_m_sar):
+    def apply_trading_strategy(self, sar_diff, lower_shadow, upper_shadow):
         self.long_signal = False
         self.short_signal = False
         self.buy_signal = False
@@ -9,6 +10,8 @@ class trade_strategy_1(trade_process):
         self.keep_signal = 0
         self.set_delay = 1
         self.delay = 0
+        self.start_ma_stop_gain_3 = False
+        self.start_ma_stop_gain_6 = False
 
         first_action = True
         for i in range(len(self.data)):
@@ -19,7 +22,7 @@ class trade_strategy_1(trade_process):
                         self.long_signal = False
                         first_action = False
                     else:
-                        self.should_long(i, sar_m_low)
+                        self.should_long(i, sar_diff, lower_shadow)
                 elif self.do_next_trade(i,3):
                     '''
                     if self.long_signal:
@@ -33,13 +36,13 @@ class trade_strategy_1(trade_process):
                             self.trade_sell(i, self.sell_quantity(i))
                             self.sell_signal = False
                         else:
-                            self.should_sell(i, low_m_sar)
+                            self.should_sell(i, sar_diff, upper_shadow)
                     else:
                         if self.long_signal:
                             self.trade_long(i, self.long_quantity(i))
                             self.long_signal = False
                         else:
-                            self.should_long(i, sar_m_low)
+                            self.should_long(i, sar_diff, lower_shadow)
             else:
                 self.delay = self.delay - 1   
 
@@ -50,41 +53,76 @@ class trade_strategy_1(trade_process):
         total_loss = sum(self.data["Gain/Loss"].loc[self.data["Gain/Loss"] < 0 ])
         self.profit = total_gain + total_loss
 
-
     def do_next_trade(self, i, period):
         if i >= self.previous_action + period:
             return True
         else:
             return False 
     
-    def should_long(self, i, sar_m_low):
+    def should_long(self, i, sar_diff, lower_shadow):
         if self.data["Parabolic SAR"].iloc[i] > self.data["High"].iloc[i]:
-            if (self.data["Parabolic SAR"].iloc[i] - self.data["Low"].iloc[i])/self.data["Low"].iloc[i] > sar_m_low:
+            if (self.data["Parabolic SAR"].iloc[i] - self.data["Low"].iloc[i])/self.data["Low"].iloc[i] > sar_diff:
                 if self.data["Volume"].iloc[i] == self.data["Volume"].iloc[i-14:i+1].max():
                     if self.data["Open"].iloc[i] - self.data["Low"].iloc[i] <= self.data["Close"].iloc[i] - self.data["Low"].iloc[i]:
-                        if (self.data["Open"].iloc[i] - self.data["Low"].iloc[i])/(self.data["High"].iloc[i] - self.data["Low"].iloc[i]) >= 0.5:
+                        if (self.data["Open"].iloc[i] - self.data["Low"].iloc[i])/(self.data["High"].iloc[i] - self.data["Low"].iloc[i]) >= lower_shadow:
                             self.long_signal = True
                             self.delay = self.set_delay
-                            self.keep_signal = self.data["Low"].iloc[i]
+                            self.keep_signal = self.data["Close"].iloc[i]
                     else:
-                        if (self.data["Close"].iloc[i] - self.data["Low"].iloc[i])/(self.data["High"].iloc[i] - self.data["Low"].iloc[i]) >= 0.5:
+                        if (self.data["Close"].iloc[i] - self.data["Low"].iloc[i])/(self.data["High"].iloc[i] - self.data["Low"].iloc[i]) >= lower_shadow:
                             self.long_signal = True
                             self.delay = self.set_delay
-                            self.keep_signal = self.data["Low"].iloc[i]
+                            self.keep_signal = self.data["Close"].iloc[i]
         
 
-    def should_sell(self, i, low_m_sar):
-        if self.data["Low"].iloc[i] > self.data["Parabolic SAR"].iloc[i]:
-            if (self.data["Low"].iloc[i] - self.data["Parabolic SAR"].iloc[i])/self.data["Parabolic SAR"].iloc[i] < low_m_sar:
-                self.sell_signal = True
-                self.delay = self.set_delay
-                self.keep_signal = 0
-        elif (self.data["Close"].iloc[i] - self.exist_long[0][1])/self.exist_long[0][1] <= -(0.001 + self.fees):
+    def should_sell(self, i, sar_diff, upper_shadow):
+        if (self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4] >= 0.06 or self.start_ma_stop_gain_6 == True:
+            
+            # 直接出場
             self.sell_signal = True
             self.keep_signal = 0
-        elif self.data["Low"].iloc[i] < self.keep_signal:
+            self.ma_stop_gain = 0
+            self.start_ma_stop_gain_3 = False
+            self.start_ma_stop_gain_6 = False
+
+            """
+            # 進階移動停利
+            if self.start_ma_stop_gain_6 != True:
+                self.start_ma_stop_gain_6 = True
+            if self.ma_stop_gain == 0:
+                self.ma_stop_gain = (self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4]   
+            else:
+                if ((self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4]) <= self.ma_stop_gain*2/3:
+                    self.sell_signal = True
+                    self.keep_signal = 0
+                    self.ma_stop_gain = 0
+                    self.start_ma_stop_gain_3 = False
+                    self.start_ma_stop_gain_6 = False
+                elif ((self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4]) > self.ma_stop_gain:
+                    self.ma_stop_gain = (self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4] 
+            """
+        elif (self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4] >= 0.03 or self.start_ma_stop_gain_3 == True:
+            # 移動停利
+            if self.start_ma_stop_gain_3 != True:
+                self.start_ma_stop_gain_3 = True
+            if self.ma_stop_gain == 0:
+                self.ma_stop_gain = (self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4] 
+            else:
+                if ((self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4]) <= self.ma_stop_gain*1/2:
+                    self.sell_signal = True
+                    self.keep_signal = 0
+                    self.ma_stop_gain = 0
+                    self.start_ma_stop_gain_3 = False
+                    self.start_ma_stop_gain_6 = False
+                elif ((self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4]) > self.ma_stop_gain:
+                    self.ma_stop_gain = (self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4] 
+        elif (self.data["Close"].iloc[i] - self.exist_long[0][4])/self.exist_long[0][4] <= -0.05:
             self.sell_signal = True
             self.keep_signal = 0
+            self.ma_stop_gain = 0
+            self.start_ma_stop_gain_3 = False
+            self.start_ma_stop_gain_6 = False
+
         """
         elif (self.data["Close"].iloc[i] - self.exist_long[0][1])/self.data["Close"].iloc[i] >= (0.0065 + self.fees):
             self.sell_signal = True
