@@ -1,1 +1,1 @@
-Check [Demo](https://chiayi-lin.github.io/Stock_Trader/backtest.html)
+Check [demo](https://chiayi-lin.github.io/Stock_Trader/backtest.html) here!
