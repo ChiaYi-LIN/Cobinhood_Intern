@@ -33,6 +33,7 @@ if __name__ == '__main__':
 
     # Import data
     data = pd.read_csv("./data/binance_candles_btcusdt_190331.csv")
+    data = data.iloc[-100000:]
     # data = pd.read_csv("./data/binance_candles_btcusdt.csv")
     data.columns = [data_timestamp, data_open, data_high, data_low, data_close, data_volume]
     data = data.sort_values(data_timestamp)

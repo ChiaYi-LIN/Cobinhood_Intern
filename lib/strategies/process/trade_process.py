@@ -308,7 +308,7 @@ class plot_data:
     
     def plot_all(self):
         
-        # self.plotly_plot_technical_analysis_part()
+        self.plotly_plot_technical_analysis_part()
         # self.plotly_plot_technical_analysis_full()
         self.plot_overview_win_and_lose()
         self.bokeh_plot_technical_analysis_part()
@@ -396,27 +396,27 @@ class plot_data:
             decreasing = dict( line = dict( color = "#00FF00" ) )
         )
         
-        trace_psar_bear = go.Scatter(
-            x = self.data["Datetime"],
-            y = self.data["SAR Bear"],
-            mode = "markers",
-            marker = dict( 
-                size = 3,
-                color = "#0D5661"
-            ),
-            name = "SAR Bear"
-        )
+        # trace_psar_bear = go.Scatter(
+        #     x = self.data["Datetime"],
+        #     y = self.data["SAR Bear"],
+        #     mode = "markers",
+        #     marker = dict( 
+        #         size = 3,
+        #         color = "#0D5661"
+        #     ),
+        #     name = "SAR Bear"
+        # )
 
-        trace_psar_bull = go.Scatter(
-            x = self.data["Datetime"],
-            y = self.data["SAR Bull"],
-            mode = "markers",
-            marker = dict( 
-                size = 3,
-                color = "#E98B2A" 
-            ),
-            name = "SAR Bull"
-        )
+        # trace_psar_bull = go.Scatter(
+        #     x = self.data["Datetime"],
+        #     y = self.data["SAR Bull"],
+        #     mode = "markers",
+        #     marker = dict( 
+        #         size = 3,
+        #         color = "#E98B2A" 
+        #     ),
+        #     name = "SAR Bull"
+        # )
 
         long_point = self.data.loc[self.data["Long"] > 0 ]
         trace_long = go.Scatter(
@@ -484,8 +484,8 @@ class plot_data:
         )
 
         fig.append_trace(trace_ohlc, 1, 1)
-        fig.append_trace(trace_psar_bull, 1, 1)
-        fig.append_trace(trace_psar_bear, 1, 1)
+        # fig.append_trace(trace_psar_bull, 1, 1)
+        # fig.append_trace(trace_psar_bear, 1, 1)
         fig.append_trace(trace_long, 1, 1)
         fig.append_trace(trace_short, 1, 1)
         fig.append_trace(trace_buy, 1, 1)
@@ -545,7 +545,7 @@ class plot_data:
         )
 
         # Show plots
-        py.iplot(fig, filename = "plot_part")
+        py.plot(fig, filename = "plot_ohlc.html")
 
     def plotly_plot_technical_analysis_full(self):
         # Part 1
